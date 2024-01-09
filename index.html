@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Engagement Widget Player</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script type="text/javascript" src="https://lpcdn.lpsnmedia.net/unifiedwindow/widgetSDK.min.js"></script>
+    <base target="_blank" />
+
+    <style>
+      /* CSS to allow video player to display as full screen */
+      iframe {
+        display: block; /* iframes are inline by default */
+        background: #000;
+        border: none; /* Reset default border */
+        width: 100%;
+        height: 100%;
+      }
+
+      html,
+      body {
+        height: 100%;
+        margin: 0px;
+        padding: 0px;
+        overflow: hidden;
+      }
+      #videoPlayerContainer {
+        height: 100%;
+      }
+    </style>
+  </head>
+
+  <body>
+    <script>
+      let lpWidgetSDK;
+      let widgetState = false; // Default state of the widget window is false. this will be set to true when the widget is opened up.
+      const widgetSDKAPI = lpTag.LPWidgetSDK.API;
+
+      // Object mapping for video links and trigger words. Add the trigger word as the key and the url link at the value.
+      const videoLibrary = {
+        "@skyglass": "https://www.youtube.com/embed/lGP7KHWhv_g",
+      };
+
+      // Closes the widget. Once this is done, the SDK can only be initialised again on the next conversation.
+      const disposeWidget = () => {
+        console.log("disposing");
+        lpWidgetSDK.dispose((data) => console.log("diposed"));
+      };
+
+      // Creates iframe for video player when trigger word is found
+      const initiFrame = () => {
+        const iframeExists = document.getElementById("videoplayer");
+
+        if (!iframeExists) {
+          const iframe = document.createElement("iframe");
+          iframe.id = "videoplayer";
+          iframe.src = "";
+          iframe.title = "Video player";
+          iframe.frameBorder = "0";
+          iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen";
+          document.getElementById("videoPlayerContainer").appendChild(iframe);
+        }
+      };
+
+      // Function to identify keywords based on the videoLibrary object mapping defined above.
+      const identifyKeyword = (message) => {
+        const videoTriggerWords = Object.keys(videoLibrary);
+
+        const matchedVideo = videoTriggerWords.find((videoTriggerWord) => {
+          if (message.indexOf(videoTriggerWord) > -1) {
+            return videoTriggerWord;
+          }
+        });
+
+        if (matchedVideo) {
+          initiFrame();
+          document.getElementById("videoplayer").src = videoLibrary[matchedVideo];
+
+          // Notify method triggers the red notification indicator on consumer side
+          lpWidgetSDK.notify({ content: "message sent from agent" }, (err) => {
+            if (err) {
+              console.log(err);
+            }
+          });
+        }
+      };
+
+      // On Event logic. Based on the type of event, separate logic is applied.
+      const onEventMessage = (eventData) => {
+        if (eventData && eventData.data) {
+          const messageData = eventData.data;
+          if (
+            messageData.originator &&
+            messageData.originator.type === "agent" &&
+            messageData.content !== "" &&
+            messageData.state === "SENT" &&
+            messageData.originator.name !== "Info"
+          ) {
+            identifyKeyword(messageData.content);
+          }
+        }
+      };
+
+      const onEventConvInfo = (eventData) => {
+        if (eventData && eventData.data) {
+          const convInfoData = eventData.data;
+          if (convInfoData.state === "ended") {
+            disposeWidget();
+          }
+        }
+      };
+
+      const onEventWidgetUI = (eventData) => {
+        if (eventData && eventData.data) {
+          const widgetUIData = event.data;
+          widgetState = widgetUIData.isShown;
+        }
+      };
+
+      // Initialises the SDK and binds to specific Messaging events to then run logic on.
+      // Event structures can be found here: https://developers.liveperson.com/engagement-window-widget-sdk-instructions-event-structure.html
+      // SDK methods can be found here: https://developers.liveperson.com/engagement-window-widget-sdk-instructions-how-to-use-the-sdk.html#public-methods
+      const init = () => {
+        // Binding events to specific on-event functions defined above
+        const eventBinds = {
+          bind: {
+            messages: { func: onEventMessage, context: this },
+            conversationInfo: { func: onEventConvInfo, context: this },
+            uiWidget: { func: onEventWidgetUI, context: this },
+          },
+        };
+
+        lpWidgetSDK = lpTag.LPWidgetSDK.init(eventBinds);
+      };
+
+      // Calls init() the widget window has loaded
+      window.addEventListener("load", init);
+    </script>
+
+    <!-- div container for iframe -->
+    <div id="videoPlayerContainer"></div>
+  </body>
+</html>
